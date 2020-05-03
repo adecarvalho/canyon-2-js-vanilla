@@ -1,6 +1,6 @@
 /*
 ezLib.js
-2020-avril-9
+2020-05-03
 author A.DeCarvalho
 */
 //***************
@@ -14,6 +14,12 @@ export function getRandomFloat(min, max) {
 	return Math.random() * (max - min) + min;
 }
 //
+export function drawText(ctx, text, xp, yp, size, color) {
+	ctx.fillStyle = color;
+	ctx.font = `${size}px Arial`;
+	ctx.fillText(text, xp, yp);
+}
+//
 export function drawFillCircle(ctx, xp, yp, radius, color) {
 	ctx.fillStyle = color;
 	ctx.beginPath();
@@ -24,7 +30,11 @@ export function drawFillCircle(ctx, xp, yp, radius, color) {
 export function drawFillRectangle(ctx, xp, yp, width, height, color) {
 	ctx.fillStyle = color;
 	ctx.fillRect(xp, yp, width, height);
-	ctx.fill();
+}
+//
+export function drawLineRectangle(ctx, xp, yp, width, height, color) {
+	ctx.strokeStyle = color; //'rgb(255,50,200)';
+	ctx.strokeRect(xp, yp, width, height);
 }
 //******************* */
 // Objets
@@ -768,6 +778,22 @@ export class Game {
 
 		this.fps = 0;
 		this.fpsmoyen = 0;
+
+		//
+		const yoff = this.canvas.offsetTop;
+		const xoff = this.canvas.offsetLeft;
+
+		document.addEventListener('mousemove', (evt) => {
+			this.input.mousePosition.x = evt.pageX - xoff;
+			this.input.mousePosition.y = evt.pageY - yoff;
+		});
+
+		document.addEventListener('mousedown', (evt) => {
+			this.input.mouseClick.x = evt.pageX - xoff;
+			this.input.mouseClick.y = evt.pageY - yoff;
+			this.input.mouseClick.clicked = true;
+			this.input.mouseClick.button = evt.button;
+		});
 	}
 	//
 	getFps() {
@@ -877,6 +903,11 @@ export class InputManager {
 	constructor() {
 		this.tabKeyPressed = {};
 		this.tabKeyReleased = {};
+
+		this.mousePosition = { x: 0, y: 0 };
+		this.mouseClick = { x: 0, y: 0, clicked: false, button: -1 };
+		//
+
 		//
 		document.addEventListener(
 			'keydown',
@@ -907,6 +938,9 @@ export class InputManager {
 	update() {
 		this.tabKeyReleased = {};
 		this.tabKeyPressed = {};
+
+		this.mouseClick.clicked = false;
+		this.mouseClick.button = -1;
 	}
 	//
 	isKeyPressed(keyCode) {
@@ -915,6 +949,10 @@ export class InputManager {
 	//
 	isKeyReleased(keyCode) {
 		return this.tabKeyReleased[keyCode];
+	}
+	//
+	isMouseClicked() {
+		return this.mouseCliked;
 	}
 }
 //***************************** */
