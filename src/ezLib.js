@@ -1,7 +1,14 @@
 /*
 ezLib.js
-2020-05-03
+2020-05-22
 author A.DeCarvalho
+news:
+	- angle
+	- translate canvas
+	- rotate canvas
+	- circBounds
+	- localStorage
+
 */
 //***************
 // functions
@@ -20,10 +27,18 @@ export function drawText(ctx, text, xp, yp, size, color) {
 	ctx.fillText(text, xp, yp);
 }
 //
-export function drawFillCircle(ctx, xp, yp, radius, color) {
-	ctx.fillStyle = color;
+export function drawLineCircle(ctx, xc, yc, radius, color) {
+	ctx.strokeStyle = color;
 	ctx.beginPath();
-	ctx.arc(xp, yp, radius, 0, Math.PI * 2, true);
+	ctx.arc(xc, yc, radius, 0, Math.PI * 2, true);
+	ctx.stroke();
+}
+//
+export function drawFillCircle(ctx, xc, yc, radius, color) {
+	ctx.fillStyle = color;
+	ctx.lineWidth = 2;
+	ctx.beginPath();
+	ctx.arc(xc, yc, radius, 0, Math.PI * 2, true);
 	ctx.fill();
 }
 //
@@ -33,6 +48,7 @@ export function drawFillRectangle(ctx, xp, yp, width, height, color) {
 }
 //
 export function drawLineRectangle(ctx, xp, yp, width, height, color) {
+	ctx.lineWidth = 2;
 	ctx.strokeStyle = color; //'rgb(255,50,200)';
 	ctx.strokeRect(xp, yp, width, height);
 }
@@ -221,7 +237,8 @@ export class MusicPlayer {
 		//this.snd.style.display = "none";
 		this.snd.loop = false;
 		//
-		document.body.appendChild(this.snd);
+		const div = document.getElementById('music_player');
+		div.appendChild(this.snd);
 	}
 	//
 	stop() {
@@ -247,6 +264,47 @@ export class MusicPlayer {
 	//
 	getVolume() {
 		return this.snd.volume;
+	}
+}
+//******************** */
+//******************** */
+export class CircBounds {
+	constructor(xc = 0, yc = 0, radius = 10) {
+		this.xc = xc;
+		this.yc = yc;
+		this.radius = radius;
+	}
+
+	update(xc, yc) {
+		this.xc = xc;
+		this.yc = yc;
+	}
+
+	inflate(xi = 0) {
+		this.radius = this.radius - xi;
+	}
+
+	overlap(circ_target) {
+		const a_2 = (this.xc - circ_target.xc) * (this.xc - circ_target.xc);
+		const b_2 = (this.yc - circ_target.yc) * (this.yc - circ_target.yc);
+
+		const disq = a_2 + b_2;
+		const r_2 =
+			(this.radius + circ_target.radius) * (this.radius + circ_target.radius);
+
+		if (disq < r_2) {
+			return true;
+		}
+		return false;
+	}
+
+	render(ctx) {
+		drawLineCircle(ctx, this.xc, this.yc, this.radius, 'rgb(255,0,255)');
+		// ctx.strokeStyle = 'rgb(200,200,200)';
+		// ctx.lineWidth = 2;
+		// ctx.beginPath();
+		// ctx.arc(this.xc, this.yc, this.radius, 0, Math.PI * 2);
+		// ctx.stroke();
 	}
 }
 //******************** */
@@ -312,9 +370,12 @@ export class RecBounds {
 	}
 	//
 	render(ctx) {
-		ctx.strokeStyle = 'rgb(55,55,55)';
+		drawLineRectangle(ctx, this.x, this.y, this.w, this.h, 'rgb(255,255,0)');
+		/*
+		ctx.strokeStyle = 'rgb(200,20,200)';
 		ctx.lineWidth = 2;
 		ctx.strokeRect(this.x, this.y, this.w, this.h);
+		*/
 	}
 	//
 	inflate(xi, yi) {
@@ -365,17 +426,19 @@ export class Stage {
 export class Entity {
 	//
 	constructor(xn = 0, yn = 0, image_src = undefined, w = 50, h = 50) {
+		//position
 		this.position = { x: xn, y: yn };
-
+		//
 		this.image = image_src;
-
+		//
 		this.color = 'rgb(200,200,200)';
-
 		//speed
 		this.velocity = {
 			x: 0,
 			y: 0,
 		};
+		//angle
+		this.angle = 0;
 
 		//dim
 		if (this.image != undefined) {
@@ -389,17 +452,37 @@ export class Entity {
 		//state
 		this.state = -1;
 
-		//bouds
+		//bouds rect
 		this.rectbounds = new RecBounds(
 			this.position.x,
 			this.position.y,
 			this.width,
 			this.height
 		);
+
+		//bouns circ
+		this.circBounds = new CircBounds(
+			this.getCenterX(),
+			this.getCenterY(),
+			this.width / 2
+		);
+	}
+	//
+	setSpeeds(dx, dy) {
+		this.velocity.x = dx;
+		this.velocity.y = dy;
 	}
 	//
 	setColor(color) {
 		this.color = color;
+	}
+	//
+	setAngle(angle) {
+		this.angle = angle;
+	}
+	//
+	getAngle() {
+		return this.angle;
 	}
 	//
 	getCenterX() {
@@ -453,6 +536,12 @@ export class Entity {
 	inflate(xi, yi) {
 		this.rectbounds.inflate(xi, yi);
 	}
+
+	//
+	inflateCircBounds(xi) {
+		this.circBounds.inflate(xi);
+	}
+
 	//
 	collides(other_entity) {
 		if (this.rectbounds.overlap(other_entity.rectbounds)) {
@@ -461,31 +550,54 @@ export class Entity {
 			return false;
 		}
 	}
+
+	//
+	collidesWithCircBounds(other_entity) {
+		if (this.circBounds.overlap(other_entity.circBounds)) {
+			return true;
+		}
+		//
+		return false;
+	}
+
 	//
 	update(dt) {
-		this.position.x = Math.floor(this.position.x + this.velocity.x * dt);
-		this.position.y = Math.floor(this.position.y + this.velocity.y * dt);
+		this.position.x = this.position.x + this.velocity.x * dt;
+		this.position.y = this.position.y + this.velocity.y * dt;
 
 		this.rectbounds.update(this.position.x, this.position.y);
+		this.circBounds.update(this.getCenterX(), this.getCenterY());
 	}
 	//
 	render(ctx) {
 		if (this.image != undefined) {
+			//
+			ctx.save();
+			ctx.translate(this.getCenterX(), this.getCenterY());
+			ctx.rotate(this.angle);
+			//
 			ctx.drawImage(
 				this.image,
-				this.position.x,
-				this.position.y,
+				-this.width / 2,
+				-this.height / 2,
+				//this.position.x,
+				//this.position.y,
 				this.width,
 				this.height
 			);
+			ctx.restore();
+			//
 		} else {
 			//ctx.fillStyle = 'rgb(255,0,255)';
 			ctx.fillStyle = this.color;
 			ctx.fillRect(this.position.x, this.position.y, this.width, this.height);
+			//
 		}
 	}
 	renderDebug(ctx) {
 		this.rectbounds.render(ctx);
+
+		this.circBounds.render(ctx);
 	}
 }
 //************************* */
@@ -640,6 +752,18 @@ export class ScoreManager {
 		this.points = 0;
 		this.lives = 3;
 
+		this.bestscores = {
+			firstName: 'AAA',
+			firstPoints: 3,
+			secondName: 'BBB',
+			secondPoints: 2,
+			thirdName: 'CCC',
+			thirdPoints: 1,
+		};
+
+		this.itemLocalStorage = 'EZ_BEST_SCORES';
+		this.flagWrite = false;
+
 		this.labelPoints = new Label();
 		this.labelPoints.setSize(30);
 
@@ -648,6 +772,9 @@ export class ScoreManager {
 		//
 		this.labelPoints.setColor('gold');
 		this.labelName.setColor('gold');
+
+		//this.writeToLocalStorage();
+		this.readFromLocalStorage();
 	}
 	//
 	setName(zename) {
@@ -681,11 +808,16 @@ export class ScoreManager {
 	}
 	//
 	decrementsLives(amt = 1) {
-		this.lives--;
+		this.lives = this.lives - amt;
+	}
+	//
+	getBestScores() {
+		return this.bestscores;
 	}
 	//
 	isGameOver() {
 		if (this.lives < 0) {
+			this.calcBestScores();
 			return true;
 		} else {
 			return false;
@@ -698,6 +830,94 @@ export class ScoreManager {
 	}
 	//
 	update(dt) {}
+
+	//
+	calcBestScores() {
+		//
+		if (this.flagSave) {
+			return;
+		}
+		//
+		if (this.points > this.bestscores.firstPoints) {
+			//
+			this.bestscores.thirdName = this.bestscores.secondName;
+			this.bestscores.thirdPoints = this.bestscores.secondPoints;
+
+			this.bestscores.secondName = this.bestscores.firstName;
+			this.bestscores.secondPoints = this.bestscores.firstPoints;
+
+			this.bestscores.firstName = this.name;
+			this.bestscores.firstPoints = this.points;
+
+			this.writeToLocalStorage();
+			this.flagSave = true;
+			return;
+		}
+		//
+		if (this.points > this.bestscores.secondPoints) {
+			//
+			this.bestscores.thirdName = this.bestscores.secondName;
+			this.bestscores.thirdPoints = this.bestscores.secondPoints;
+
+			this.bestscores.secondName = this.name;
+			this.bestscores.secondPoints = this.points;
+
+			this.writeToLocalStorage();
+			this.flagSave = true;
+			return;
+		}
+		//
+		if (this.points > this.bestscores.thirdPoints) {
+			//
+			this.bestscores.thirdName = this.name;
+			this.bestscores.thirdPoints = this.points;
+
+			this.writeToLocalStorage();
+			this.flagSave = true;
+			return;
+		}
+	}
+
+	//
+	readFromLocalStorage() {
+		try {
+			if (this.itemLocalStorage in localStorage) {
+				const res = JSON.parse(localStorage.getItem(this.itemLocalStorage));
+
+				const {
+					firstName,
+					firstPoints,
+					secondName,
+					secondPoints,
+					thirdName,
+					thirdPoints,
+				} = res;
+
+				this.bestscores.firstName = firstName;
+				this.bestscores.firstPoints = firstPoints;
+
+				this.bestscores.secondName = secondName;
+				this.bestscores.secondPoints = secondPoints;
+
+				this.bestscores.thirdName = thirdName;
+				this.bestscores.thirdPoints = thirdPoints;
+			}
+		} catch (error) {
+			//
+			console.err(error);
+		}
+	}
+
+	//
+	writeToLocalStorage() {
+		try {
+			const txt = JSON.stringify(this.bestscores);
+			localStorage.setItem(this.itemLocalStorage, txt);
+		} catch (error) {
+			//
+			console.err(error);
+		}
+	}
 	//
 	render(ctx) {
 		this.labelPoints.setText('Points: ' + this.points);
@@ -917,7 +1137,7 @@ export class InputManager {
 				setTimeout(() => {
 					this.tabKeyPressed[evt.code] = true;
 					this.tabKeyReleased[evt.code] = false;
-				}, 50);
+				}, 10);
 			},
 			false
 		);
@@ -929,7 +1149,7 @@ export class InputManager {
 				setTimeout(() => {
 					this.tabKeyReleased[evt.code] = true;
 					this.tabKeyPressed[evt.code] = false;
-				}, 50);
+				}, 10);
 			},
 			false
 		);
@@ -987,6 +1207,25 @@ export class ParticulesGenerator {
 		}
 	}
 	//
+	setColor(r = 50, g = 50, b = 50) {
+		for (let i = 0; i < 100; i++) {
+			this.particules[i].setColor(r, g, b);
+		}
+	}
+
+	//
+	setSpeedMinMax(speedMin, speedMax) {
+		this.speedMin = speedMin;
+		this.speedMax = speedMax;
+	}
+
+	//
+	setAngleMinMax(angleMin, angleMax) {
+		this.angleMin = angleMin;
+		this.angleMax = angleMax;
+	}
+
+	//
 	start() {
 		this.go = true;
 	}
@@ -1007,6 +1246,11 @@ export class ParticulesGenerator {
 				//
 				if (this.particules[i].isDead()) {
 					this.particules[i].reset(this.position.x, this.position.y);
+
+					const module = getRandomFloat(this.speedMin, this.speedMax);
+					const angle = getRandomFloat(this.angleMin, this.angleMax);
+
+					this.particules[i].setSpeed(module, angle);
 				}
 			}
 		}
@@ -1024,7 +1268,7 @@ export class ParticulesGenerator {
 //******************* */
 //******************* */
 export class Particule {
-	constructor(xp, yp, radius = 6, live = 2) {
+	constructor(xp, yp, radius = 4, live = 1) {
 		this.positionInit = {
 			x: xp,
 			y: yp,
@@ -1043,6 +1287,13 @@ export class Particule {
 		this.color = { r: 0, g: 0, b: 0, a: 1 };
 		this.state = 'LIVE';
 		this.timer = 0;
+	}
+	//
+	setColor(r = 50, g = 50, b = 50) {
+		this.color.r = r;
+		this.color.g = g;
+		this.color.b = b;
+		this.color.a = 1;
 	}
 	//
 	isDead() {
@@ -1080,18 +1331,21 @@ export class Particule {
 	}
 	//
 	update(dt) {
-		this.timer += dt;
-		if (this.timer > this.live) {
-			this.timer = 0;
-			this.state = 'DEAD';
+		if (this.state == 'LIVE') {
+			this.timer += dt;
+			//
+			if (this.timer > this.live) {
+				this.timer = 0;
+				this.state = 'DEAD';
+			}
+
+			const alpha = 255 - (255 * this.timer) / this.live;
+
+			this.color.a = alpha / 255;
+
+			this.position.x += this.velocity.x * dt;
+			this.position.y += this.velocity.y * dt;
 		}
-
-		const alpha = 255 - (255 * this.timer) / this.live;
-
-		this.color.a = alpha / 255;
-
-		this.position.x += this.velocity.x * dt;
-		this.position.y += this.velocity.y * dt;
 	}
 	//
 	render(ctx) {
